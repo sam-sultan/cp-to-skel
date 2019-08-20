@@ -2,6 +2,8 @@ import numpy as np
 from sklearn.neighbors import KDTree
 import networkx as nx
 import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.spatial.distance import pdist
 
 
 """
@@ -16,6 +18,31 @@ class ToGraph:
         self.Data = Data
 
     """
+    Computes pairwise distances
+    and returns the median
+    """
+    def medianPD(self, Points):
+        """
+        clusters = []
+        for i in range(1, 50):
+            centroids, distortion = kmeans(self.Points, i)
+            clusters.append((i, distortion))
+
+        df = pd.DataFrame(clusters, columns=["k", "distortion"])
+        df.plot(kind="line", x="k", y="distortion")
+        plt.show()
+        """
+        dists = pdist(Points, metric="euclidean")
+        """
+        df = pd.DataFrame(dists)
+        df.hist()
+        plt.show()
+        """
+        median = np.median(dists)
+
+        return median
+
+    """
     Converts the cloud points to graph
     """
     def convert(self, distance, total=100000):
@@ -25,6 +52,8 @@ class ToGraph:
 
         # Kd tree
         self.tree = KDTree(Points, leaf_size=2, metric='euclidean')
+
+        distance = self.medianPD(Points)
 
         # get nearest points
         pts, distances = self.tree.query_radius( Points , r=distance, return_distance=True, sort_results=True)
@@ -75,9 +104,12 @@ class ToGraph:
 
         # if positive
         if not dir:
-            rootidx = np.argmax(Points, axis=0)[0]
+            rootidx = np.argmax(Points, axis=0)
+            rootidx = rootidx[dim]
         else:
-            rootidx = np.argmin(Points, axis=0)[0]
+            rootidx = np.argmin(Points, axis=0)
+            rootidx = rootidx[dim]
+
 
         # compute shortest between this root node and the rest
         for id in self.G.nodes:
@@ -85,15 +117,44 @@ class ToGraph:
                 try:
                     path = nx.astar_path(self.G, rootidx, id)
                     #print(rootidx, id, path)
+                    cum_dist = 0.
                     for i in range(len(path)-1):
-                        #print((path[i + 1], path[i], self.G.edges[path[i+1], path[i]]['weight']))
-                        G.add_weighted_edges_from([(path[i + 1], path[i], self.G.edges[path[i+1], path[i]]['weight'])])
+                        dist = self.G.edges[path[i+1], path[i]]['weight']
+                        G.add_weighted_edges_from([(path[i + 1], path[i], dist )])
+                        G.nodes[path[i]]['dist'] = cum_dist
+                        #print((path[i], G.nodes[path[i]]['dist'] ))
+                        cum_dist += dist
+
+                    # set the cumulutative dist for the current node
+                    G.nodes[id]['dist'] = cum_dist
+
                     #print("\n")
 
                 except:
                     print("No path", rootidx, id)
+
+        self.G = G
+        """
         #print(Points[rootidx,:])
+        #print([ (id, G.nodes[id]) for id in G.nodes ])
 
         # graph
         #nx.draw(G, with_labels=True, font_weight='bold')
         #plt.show()
+        """
+
+    """
+    Sort the nodes by distance to root
+    """
+    def sortNodes(self):
+
+        """
+        distances = []
+        for id in self.G.nodes:
+            distances.append(self.G.nodes[id]['dist'])
+        print(distances)
+        """
+
+        df = pd.DataFrame( [ (id, self.G.nodes[id]['dist']) for id in self.G.nodes ], columns=["id", "distance to root"] )
+        df["distance to root"].hist()
+        plt.show()
