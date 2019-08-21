@@ -11,7 +11,7 @@ from scipy.spatial.distance import pdist
 class Data:
 
     def __init__(self, file):
-        self.Points = np.loadtxt(file)
+        self.Points = np.loadtxt(file) if isinstance(file, str) else file
         self.Points = np.unique(self.Points, axis=0) # remove duplicates
 
 

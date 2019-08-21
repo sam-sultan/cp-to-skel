@@ -3,7 +3,8 @@ from ToGraph import ToGraph
 import numpy as np
 
 
-data = Data("test_case1.xyz")
+data = Data("test_case3.xyz") # Data("example.xyz")
+print(data.Points)
 #data.export("test.xyz")
 #data.center()
 #data.rotate() # rotate with eignvecs
@@ -14,10 +15,10 @@ data.rotate(np.array([ [2., 0., 0.],
                        [0., 0., 1.] ]))
 """
 graph = ToGraph(data)
-graph.convert(distance=2.)
-exit()
+graph.convert(distance=1.)
 # across the z
-graph.convertToDirectedG(dim=1,     # z axis
-                         dir=False  # from highest to lowest
+graph.convertToDirectedG(dim=0,     # x axis
+                         dir=True  # from lowest to highest
                          )
-graph.sortNodes()
+
+graph.levelSet(4)

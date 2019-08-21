@@ -1,9 +1,10 @@
 import numpy as np
 from sklearn.neighbors import KDTree
 import networkx as nx
-#import matplotlib.pyplot as plt
-#import pandas as pd
-from scipy.spatial.distance import pdist
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.spatial.distance import pdist, euclidean
+from Data import Data
 
 
 """
@@ -34,12 +35,10 @@ class ToGraph:
         """
         print("Computing the pdist...")
         dists = pdist(Points, metric="euclidean")
-        """
-        df = pd.DataFrame(dists)
-        df.hist()
-        plt.show()
-        """
         print("Computing the median...")
+        #df = pd.DataFrame(dists)
+        #df.hist()
+        #plt.show()
         median = np.median(dists)
         print("Done!")
 
@@ -56,23 +55,27 @@ class ToGraph:
         # Kd tree
         self.tree = KDTree(Points, leaf_size=2, metric='euclidean')
 
-        distance = self.medianPD(Points)
+        distance = distance #self.medianPD(Points)
+        #print(self.medianPD(Points))
+        #res = self.tree.kernel_density(Points, h=0.5)
+        #print(res/sum(res))
 
-        print("Querying the nearest neighbors...")
+        #print("Querying the nearest neighbors...")
         # get nearest points
         pts, distances = self.tree.query_radius( Points , r=distance, return_distance=True, sort_results=True)
-        print("Done!")
+        #print("Done!")
 
         # graph
         self.G = nx.Graph()
 
-        # Need to Optimize this part <----------------------
-        print("Building the Graph...")
+        #print("Building the Graph...")
         # loop through the closest points to each and build the graph
         for ptstack, diststack in zip(pts, distances):
 
             # make sure to grab the maximum allowed total neighbors
             t = ptstack.shape[0] if total > ptstack.shape[0] else total
+
+            #print(ptstack, diststack)
 
             # add the current node
             self.G.add_node(ptstack[0])
@@ -83,12 +86,11 @@ class ToGraph:
                 self.G.add_node(pt_idx)
                 # add the edge with the distance as weight
                 self.G.add_edge(ptstack[0], pt_idx, weight=dist)
-        # Need to Optimize this part <----------------------
 
         # graph
         #nx.draw(self.G, with_labels=True, font_weight='bold')
         #plt.show()
-        print("Done!")
+        #print("Done!")
 
         return self.G
 
@@ -107,6 +109,10 @@ class ToGraph:
 
         # get ref to points
         Points = self.Data.Points
+
+        # params
+        self.dim = dim
+        self.dir = dir
 
         # init the directed graph
         G = nx.DiGraph()
@@ -146,11 +152,60 @@ class ToGraph:
         """
         #print(Points[rootidx,:])
         #print([ (id, G.nodes[id]) for id in G.nodes ])
+        """
+
+
+        pos = {}
+        labels = []
+        for id in G.nodes:
+            pos[id] = (Points[id][0], Points[id][1])
+            if rootidx == id:
+                labels.append("r")
+            else:
+                labels.append("y")
 
         # graph
-        #nx.draw(G, with_labels=True, font_weight='bold')
-        #plt.show()
-        """
+        nx.draw(G, pos, node_color=labels, with_labels=True, font_weight='bold')
+        plt.show()
+
+
+    """
+    Level set
+    steps: how many pieces the architecture should be divided to
+    """
+    def levelSet(self, steps):
+        pts = self.sortNodes()
+        Points = self.Data.Points
+
+        centroids = []
+        longest = max(pts, key=lambda x:x[1])[1]
+        step = longest/float(steps)
+        s = 0.
+        c = 0
+        print(longest, step)
+        distance = 0.
+        while s <= longest:
+
+            cp = []
+            for i in range(c, len(pts)):
+                pt = pts[i]
+                if pt[1] > s:
+                    break
+                cp.append(pt[0])
+                c+=1
+
+            centroid = np.mean(Points[cp], axis=0)
+            centroids.append(centroid)
+            s += step
+
+        print(centroids)
+        # convert these generated figures
+        data = Data(centroids)
+        g = ToGraph(data)
+        g.convert(step)
+        g.convertToDirectedG(self.dim, self.dir)
+
+
 
     """
     Sort the nodes by distance to root
@@ -164,6 +219,13 @@ class ToGraph:
         print(distances)
         """
 
-        df = pd.DataFrame( [ (id, self.G.nodes[id]['dist']) for id in self.G.nodes ], columns=["id", "distance to root"] )
-        df["distance to root"].hist()
+        data = [ (id, self.G.nodes[id]['dist']) for id in self.G.nodes ]
+        data = sorted(data, key=lambda x:x[1])
+
+        """
+        df = pd.DataFrame( data, columns=["id", "dist_to_root"] )
+        df["dist_to_root"].hist()
         plt.show()
+        """
+
+        return data
