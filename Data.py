@@ -3,8 +3,8 @@ import numpy as np
 #import pcl
 #import open3d as o3d
 from scipy.cluster.vq import kmeans
-import pandas as pd
-import matplotlib.pyplot as plt
+#import pandas as pd
+#import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist
 
 
@@ -12,14 +12,6 @@ class Data:
 
     def __init__(self, file):
         self.Points = np.loadtxt(file)
-        """
-        np.array([ [0., 0., 0.],
-                                 [1., 0., 0.],
-                                 [0., 1., 0.],
-                                 [2., 0., 0.],
-                                 [-.5, -.5, 0.],
-                                 [0., 2., 0.]])
-        """
         self.Points = np.unique(self.Points, axis=0) # remove duplicates
 
 

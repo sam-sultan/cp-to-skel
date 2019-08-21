@@ -1,8 +1,8 @@
 import numpy as np
 from sklearn.neighbors import KDTree
 import networkx as nx
-import matplotlib.pyplot as plt
-import pandas as pd
+#import matplotlib.pyplot as plt
+#import pandas as pd
 from scipy.spatial.distance import pdist
 
 
@@ -32,13 +32,16 @@ class ToGraph:
         df.plot(kind="line", x="k", y="distortion")
         plt.show()
         """
+        print("Computing the pdist...")
         dists = pdist(Points, metric="euclidean")
         """
         df = pd.DataFrame(dists)
         df.hist()
         plt.show()
         """
+        print("Computing the median...")
         median = np.median(dists)
+        print("Done!")
 
         return median
 
@@ -55,12 +58,16 @@ class ToGraph:
 
         distance = self.medianPD(Points)
 
+        print("Querying the nearest neighbors...")
         # get nearest points
         pts, distances = self.tree.query_radius( Points , r=distance, return_distance=True, sort_results=True)
+        print("Done!")
 
         # graph
         self.G = nx.Graph()
 
+        # Need to Optimize this part <----------------------
+        print("Building the Graph...")
         # loop through the closest points to each and build the graph
         for ptstack, diststack in zip(pts, distances):
 
@@ -76,10 +83,12 @@ class ToGraph:
                 self.G.add_node(pt_idx)
                 # add the edge with the distance as weight
                 self.G.add_edge(ptstack[0], pt_idx, weight=dist)
+        # Need to Optimize this part <----------------------
 
         # graph
         #nx.draw(self.G, with_labels=True, font_weight='bold')
         #plt.show()
+        print("Done!")
 
         return self.G
 

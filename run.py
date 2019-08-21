@@ -3,7 +3,7 @@ from ToGraph import ToGraph
 import numpy as np
 
 
-data = Data("example.xyz")
+data = Data("test_case1.xyz")
 #data.export("test.xyz")
 #data.center()
 #data.rotate() # rotate with eignvecs
