@@ -49,13 +49,17 @@ class ToGraph:
     """
     def convert(self, distance, total=100000):
 
+        print("Converting...")
+
         # Points and get rid of duplicates
         Points = self.Data.Points
 
         # Kd tree
         self.tree = KDTree(Points, leaf_size=2, metric='euclidean')
 
-        distance = distance #self.medianPD(Points)
+        print("Kd tree has been set!")
+
+        self.distance = distance #self.medianPD(Points)
         #print(self.medianPD(Points))
         #res = self.tree.kernel_density(Points, h=0.5)
         #print(res/sum(res))
@@ -63,7 +67,7 @@ class ToGraph:
         #print("Querying the nearest neighbors...")
         # get nearest points
         pts, distances = self.tree.query_radius( Points , r=distance, return_distance=True, sort_results=True)
-        #print("Done!")
+        print("Done querying!")
 
         # graph
         self.G = nx.Graph()
@@ -92,6 +96,11 @@ class ToGraph:
         #plt.show()
         #print("Done!")
 
+        subs = nx.connected_component_subgraphs(self.G)
+        # grab the graph with highest number of nodes
+        self.G = sorted([ (f, len(list(f.nodes))) for f in subs ], reverse=True)[0][0]
+
+
         return self.G
 
     """
@@ -109,6 +118,8 @@ class ToGraph:
 
         # get ref to points
         Points = self.Data.Points
+
+        print("Converting to DiGraph...")
 
         # params
         self.dim = dim
@@ -146,7 +157,8 @@ class ToGraph:
                     #print("\n")
 
                 except:
-                    print("No path", rootidx, id)
+                    print("No path with distance", self.distance)
+                    return self.distance
 
         self.G = G
         """
@@ -154,7 +166,7 @@ class ToGraph:
         #print([ (id, G.nodes[id]) for id in G.nodes ])
         """
 
-
+        """
         pos = {}
         labels = []
         for id in G.nodes:
@@ -167,6 +179,10 @@ class ToGraph:
         # graph
         nx.draw(G, pos, node_color=labels, with_labels=True, font_weight='bold')
         plt.show()
+        """
+
+        return G
+
 
 
     """
@@ -177,34 +193,57 @@ class ToGraph:
         pts = self.sortNodes()
         Points = self.Data.Points
 
+
         centroids = []
         longest = max(pts, key=lambda x:x[1])[1]
         step = longest/float(steps)
         s = 0.
         c = 0
-        print(longest, step)
         distance = 0.
         while s <= longest:
 
-            cp = []
+            cpIdx = []
             for i in range(c, len(pts)):
                 pt = pts[i]
                 if pt[1] > s:
                     break
-                cp.append(pt[0])
+                cpIdx.append(pt[0])
                 c+=1
 
-            centroid = np.mean(Points[cp], axis=0)
-            centroids.append(centroid)
+            # convert these points to graph
+            subData = Data(np.array(Points[cpIdx]))
+            g = ToGraph(subData)
+            H = g.convert(self.distance)
+            Hs = list(nx.connected_component_subgraphs(H))
+            #print( [ list(h.nodes) for h in Hs ] )
+            for h in Hs:
+                points = subData.Points[list(h.nodes)]
+                centroid = np.mean(points, axis=0)
+                centroids.append(centroid)
             s += step
 
-        print(centroids)
+
         # convert these generated figures
         data = Data(centroids)
         g = ToGraph(data)
-        g.convert(step)
-        g.convertToDirectedG(self.dim, self.dir)
+        g.convert(step*1.2)
+        self.G = g.convertToDirectedG(self.dim, self.dir)
+        self.Data = data
 
+        return self.G
+
+    """
+    Export the directed Graph
+    """
+    def export(self, fname):
+
+        Points = self.Data.Points
+
+        with open(fname, "w+") as f:
+            f.write("# nodes, parent, x, y, z\n")
+            for n in self.G.nodes:
+                parents = list(self.G.successors(n))
+                f.write(str(n)+", "+str( "" if len(parents) <= 0 else parents[0] )+","+ ",".join( list(map(str, Points[n])) ) + "\n")
 
 
     """
