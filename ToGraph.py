@@ -47,7 +47,7 @@ class ToGraph:
     """
     Converts the cloud points to graph
     """
-    def convert(self, distance, total=100000):
+    def convert(self, distance, total=100000, largest=False, show=False):
 
         print("Converting...")
 
@@ -59,15 +59,23 @@ class ToGraph:
 
         print("Kd tree has been set!")
 
-        self.distance = distance #self.medianPD(Points)
         #print(self.medianPD(Points))
         #res = self.tree.kernel_density(Points, h=0.5)
         #print(res/sum(res))
 
         #print("Querying the nearest neighbors...")
         # get nearest points
+        # find the smallest distance that the query will return with at least 2 nearby neighbors
+        self.distance = distance
         pts, distances = self.tree.query_radius( Points , r=distance, return_distance=True, sort_results=True)
-        print("Done querying!")
+        minPts = len(min(pts, key= lambda x:len(x)))
+        while minPts < 2:
+            self.distance += 0.5
+            distance = self.distance
+            pts, distances = self.tree.query_radius( Points , r=distance, return_distance=True, sort_results=True)
+            minPts = len(min(pts, key= lambda x:len(x)))
+
+        print("going with ", distance)
 
         # graph
         self.G = nx.Graph()
@@ -92,13 +100,14 @@ class ToGraph:
                 self.G.add_edge(ptstack[0], pt_idx, weight=dist)
 
         # graph
-        #nx.draw(self.G, with_labels=True, font_weight='bold')
-        #plt.show()
+        if show:
+            nx.draw(self.G, with_labels=True, font_weight='bold')
+            plt.show()
         #print("Done!")
 
-        subs = nx.connected_component_subgraphs(self.G)
         # grab the graph with highest number of nodes
-        self.G = sorted([ (f, len(list(f.nodes))) for f in subs ], reverse=True)[0][0]
+        if largest:
+            self.G = max(nx.connected_component_subgraphs(self.G), key=len)
 
 
         return self.G
@@ -111,7 +120,7 @@ class ToGraph:
     # dir: False -> starting from +inf -> -inf
            True  -> starting from -inf -> +inf
     """
-    def convertToDirectedG(self, dim, dir=False):
+    def convertToDirectedG(self, dim, dir=False, show=False):
 
         # make sure the dimensions are with in limit
         assert 0 <= dim <= 2, "Please make sure the dim is between 0 and 2"
@@ -119,7 +128,7 @@ class ToGraph:
         # get ref to points
         Points = self.Data.Points
 
-        print("Converting to DiGraph...")
+        print("Converting to DiGraph...", "Nodes:", len(list(self.G.nodes)))
 
         # params
         self.dim = dim
@@ -136,50 +145,38 @@ class ToGraph:
             rootidx = np.argmin(Points, axis=0)
             rootidx = rootidx[dim]
 
-
-        # compute shortest between this root node and the rest
-        for id in self.G.nodes:
-            if id != rootidx:
-                try:
-                    path = nx.astar_path(self.G, rootidx, id)
-                    #print(rootidx, id, path)
-                    cum_dist = 0.
-                    for i in range(len(path)-1):
-                        dist = self.G.edges[path[i+1], path[i]]['weight']
-                        G.add_weighted_edges_from([(path[i + 1], path[i], dist )])
-                        G.nodes[path[i]]['dist'] = cum_dist
-                        #print((path[i], G.nodes[path[i]]['dist'] ))
-                        cum_dist += dist
-
-                    # set the cumulutative dist for the current node
-                    G.nodes[id]['dist'] = cum_dist
-
-                    #print("\n")
-
-                except:
-                    print("No path with distance", self.distance)
-                    return self.distance
+        # shortest path between every node and the source rootidx
+        dists, paths = nx.single_source_dijkstra(self.G, rootidx, weight="weight")
+        
+        for n in dists.keys():
+            path = paths[n]
+            dist = dists[n]
+            if len(path) > 1:
+                G.add_weighted_edges_from([(path[len(path) - 1], path[len(path) - 2], dist )])
+                G.nodes[path[len(path) - 1]]['dist'] = dist
+            else:
+                G.add_node(n)
+                G.nodes[n]['dist'] = 0.
 
         self.G = G
-        """
+
         #print(Points[rootidx,:])
         #print([ (id, G.nodes[id]) for id in G.nodes ])
-        """
 
-        """
-        pos = {}
-        labels = []
-        for id in G.nodes:
-            pos[id] = (Points[id][0], Points[id][1])
-            if rootidx == id:
-                labels.append("r")
-            else:
-                labels.append("y")
+        if show:
+            pos = {}
+            labels = []
+            for id in G.nodes:
+                pos[id] = (Points[id][0], Points[id][1])
+                if rootidx == id:
+                    labels.append("r")
+                else:
+                    labels.append("y")
 
-        # graph
-        nx.draw(G, pos, node_color=labels, with_labels=True, font_weight='bold')
-        plt.show()
-        """
+            # graph
+            nx.draw(G, pos, node_color=labels, with_labels=True, font_weight='bold')
+            plt.show()
+            
 
         return G
 
@@ -210,23 +207,27 @@ class ToGraph:
                 cpIdx.append(pt[0])
                 c+=1
 
-            # convert these points to graph
-            subData = Data(np.array(Points[cpIdx]))
-            g = ToGraph(subData)
-            H = g.convert(self.distance)
-            Hs = list(nx.connected_component_subgraphs(H))
-            #print( [ list(h.nodes) for h in Hs ] )
-            for h in Hs:
-                points = subData.Points[list(h.nodes)]
-                centroid = np.mean(points, axis=0)
-                centroids.append(centroid)
+            if len(cpIdx) > 1:
+                # convert these points to graph
+                subData = Data(np.array(Points[cpIdx]))
+                g = ToGraph(subData)
+                H = g.convert(self.distance)
+                Hs = list(nx.connected_component_subgraphs(H))
+                #print( [ list(h.nodes) for h in Hs ] )
+                for h in Hs:
+                    points = subData.Points[list(h.nodes)]
+                    centroid = np.mean(points, axis=0)
+                    centroids.append(centroid)
+
             s += step
+
+        centroids = np.array(centroids)
 
 
         # convert these generated figures
         data = Data(centroids)
         g = ToGraph(data)
-        g.convert(step*1.2)
+        g.convert(0.5)
         self.G = g.convertToDirectedG(self.dim, self.dir)
         self.Data = data
 
